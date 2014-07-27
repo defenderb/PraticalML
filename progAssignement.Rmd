@@ -1,0 +1,83 @@
+---
+title: "PMLproject.Rmd"
+author: "Aleksandr Brilkov"
+date: "Sunday, July 27, 2014"
+output: html_document
+---
+Practical Machine Learning porogamassignment
+=================================
+# Executive summary
+Group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks.
+The goal of the project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. Using any of the other variables we need to predict their behavoir.  Below I createed a report describing how I'v built the model, how I used cross validation, what I think the expected out of sample error is. Also I used prediction model to predict 20 different test cases. 
+
+# Collecting data
+```{r, eval=FALSE}
+url1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url2 <-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(url1, "./data/pml-training.csv")
+download.file(url2, "./data/pml-testing.csv")
+```
+```{r}
+traindata <- read.csv("./data/pml-training.csv", na.strings=c(NA,"","NA"))[,-1]
+newdata <- read.csv("./data/pml-testing.csv",na.strings=c(NA,"","NA"))[,-1]
+```
+## Cleaning data
+```{r}
+usefulCols <- (colSums(!(traindata == '')) > 0.9*nrow(traindata)) &
+  (colSums(!is.na(traindata))>3/4*nrow(traindata))
+traindata <- traindata[, usefulCols]
+newdata <- newdata[,usefulCols]
+traindata <-traindata[7:ncol(traindata)]
+newdata <-newdata[7:ncol(newdata)]
+dim(traindata)
+dim(newdata)
+```
+Checking demensions of new datasets.
+## Data separation
+Creation chunks of traning and testing data from traindata dataset to test the model.
+```{r}
+exCol <- ncol(traindata)
+library(caret)
+inTrain <- createDataPartition(traindata$classe, p=0.5, list = FALSE)
+train <- traindata[inTrain,]
+test <- traindata[-inTrain,]
+```
+Training set was devided into two equal parts "train" and "test"
+# Building model
+Using train data build model utilizing method RandomForest.
+Cross validation was implemented by caret pakage with number of 3 resamplings.
+```{r, cache=TRUE}
+modelT <- train(classe ~ ., data = train, method = "rf", prox=TRUE,
+                trControl = trainControl(method = "cv", number = 3, 
+                                         allowParallel = TRUE))
+```
+
+## Checking model
+First, test model on train data set.
+```{r}
+confusionMatrix(train$classe, predict(modelT, train))
+```
+We can see, thatn kappa is 1 and Accuracy is 100%
+Second, test model on test data
+```{r}
+confusionMatrix(test$classe, predict(modelT, test))
+```
+We can see that Kappa is about 99% and Accuracy is 99% too. So it looks like as a good predictive model for our data.
+
+## Prediction
+Now we need to predict 'classe' for newdata:
+```{r}
+prediction  <- predict(modelT, newdata)
+```
+and create files for to submit assignment
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+prediction  <- predict(modelT, newdata)
+pml_write_files(prediction)
+```
